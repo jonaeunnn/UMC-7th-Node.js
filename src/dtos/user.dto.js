@@ -16,17 +16,25 @@ export const bodyToUser = (body) => {
 // || "" 이면 필수 입력 정보가 아니다!
 
 // responseFromUser: 데이터베이스에서 받은 데이터를 클라이언트 형식에 맞게 변환
-export const responseFromUser = ({ user }) => {
+
+// export const responseFromUser = ({ user }) => {
+//   return {
+//     user: {
+//       email: user.email,
+//       name: user.name,
+//       gender: user.gender,
+//       birth: user.birth, // Date 객체를 ISO 문자열로 변환
+//       address: user.address,
+//       detailAddress: user.detailAddress,
+//       phoneNumber: user.phoneNumber,
+//       fav_food: user.fav_food || [],
+//     },
+//   };
+// };
+export const responseFromUser = (user) => {
   return {
-    user: {
-      email: user.email,
-      name: user.name,
-      gender: user.gender,
-      birth: user.birth, // Date 객체를 ISO 문자열로 변환
-      address: user.address,
-      detailAddress: user.detailAddress,
-      phoneNumber: user.phoneNumber,
-      fav_food: user.fav_food || [],
-    },
+    email: user.email,
+    name: user.name,
+    fav_food: fav_food,
   };
 };
