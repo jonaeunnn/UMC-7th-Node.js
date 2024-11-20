@@ -21,7 +21,7 @@ model User {
   address       String   @db.VarChar(255)
   detailAddress String?  @map("detail_address") @db.VarChar(255)
   phoneNumber   String   @map("phone_number") @db.VarChar(15)
-  favFood       Json?    @map("fav_food")  // 추가된 부분
+  fav_Food       Json?    @map("fav_food")  // 추가된 부분
 
   @@map("user")
 }

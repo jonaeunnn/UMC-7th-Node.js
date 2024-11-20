@@ -1,16 +1,37 @@
+import swaggerAutogen from "swagger-autogen";
+import swaggerUiExpress from "swagger-ui-express";
 import dotenv from "dotenv";
 import express from "express";
-
 import cors from "cors";
 import { handleStorePostUp } from "./controllers/store.controller.js";
 import { handleUserSignUp } from "./controllers/user.controller.js";
 import { handleMissionStatusUpdate } from "./controllers/mission.controller.js";
 import { handleGetMissionsByStoreId } from "./controllers/getmission.controller.js";
-
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT;
+
+/**
+ * 공통 응답을 사용할 수 있는 헬퍼 함수 등록
+ */
+app.use((req, res, next) => {
+  res.success = (success) => {
+    return res.json({ resultType: "SUCCESS", error: null, success });
+  };
+
+  res.error = ({ errorCode = "unknown", reason = null, data = null }) => {
+    return res.json({
+      resultType: "FAIL",
+      error: { errorCode, reason, data },
+      success: null,
+    });
+  };
+
+  next();
+});
+
+/** controller 내에서 별도로 처리하지 않은 오류가 발생한 경우, 모두 잡아서 공통된 오류 응답으로 내려줌 */
 
 app.use(cors()); // cors 방식 허용
 app.use(express.static("public")); // 정적 파일 접근
@@ -20,12 +41,65 @@ app.get("/mission/:store_id", handleGetMissionsByStoreId);
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
-//첫번쨰 인자->req:클라이언트에서 요청이 올떄 , requestbody ,reqheader,url등등 그런 정보들이 들어 있음
-//res: 클라이언트한테 응답할 때 필요한 모든 정보
-app.post("/signup", handleUserSignUp);
-//post로 /signup으로 요청이오면 handleUserSignup실행
+
+app.post("/signup", handleUserSignUp); // signup 처리 핸들러
+
 app.post("/stores", handleStorePostUp);
 app.patch("/missions", handleMissionStatusUpdate);
+
+// Swagger 설정 추가 시작
+app.use(
+  "/docs",
+  swaggerUiExpress.serve,
+  swaggerUiExpress.setup(
+    {},
+    {
+      swaggerOptions: {
+        url: "/openapi.json",
+      },
+    }
+  )
+);
+
+app.get("/openapi.json", async (req, res, next) => {
+  // #swagger.ignore = true
+  const options = {
+    openapi: "3.0.0",
+    disableLogs: false,
+    writeOutputFile: true,
+  };
+  const outputFile = "./swagger-output.json"; // 파일 출력은 사용하지 않습니다.
+  const routes = ["./src/index.js"];
+  const doc = {
+    info: {
+      title: "UMC 7th",
+      description: "UMC 7th Node.js 테스트 프로젝트입니다.",
+    },
+    host: "localhost:3001",
+  };
+
+  const result = await swaggerAutogen(options)(outputFile, routes, doc);
+
+  // Swagger UI에서 사용할 수 있도록 JSON 응답
+  res.json(result ? result.data : null);
+});
+// Swagger 설정 추가 끝
+
+/**
+ * 전역 오류를 처리하기 위한 미들웨어
+ */
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(err.statusCode || 500).error({
+    errorCode: err.errorCode || "unknown",
+    reason: err.reason || err.message || null,
+    data: err.data || null,
+  });
+});
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });

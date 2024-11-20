@@ -10,7 +10,7 @@ export const bodyToUser = (body) => {
     address: body.address || "",
     detailAddress: body.detailAddress || "",
     phoneNumber: body.phoneNumber || "",
-    fav_food: body.fav_food || [],
+    fav_Food: body.fav_food || [],
   };
 };
 // || "" 이면 필수 입력 정보가 아니다!

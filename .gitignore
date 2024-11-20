@@ -4,3 +4,8 @@ node_modules/
 # dotenv environment variable files
 .env
 .env.*
+
+swagger-output.json
+packge-lock.json
+packge.json
+prisma/schema.prisma

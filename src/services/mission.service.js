@@ -16,7 +16,7 @@ export const startMission = async (missionDTO) => {
     missionDTO.mission_id
   );
   if (!mission) {
-    throw new Error(`Mission with ID ${missionDTO.id} does not exist.`);
+    throw new Error(`mission id: ${missionDTO.id} 가 존재하지 않습니다.`);
   }
 
   // 미션 상태가 "대기 중"인지 확인
