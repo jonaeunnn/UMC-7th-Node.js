@@ -3,14 +3,27 @@ import swaggerUiExpress from "swagger-ui-express";
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
+import { PrismaClient } from "@prisma/client"; // PrismaClient import 추가
+import { PrismaSessionStore } from "@quixo3/prisma-session-store";
+import session from "express-session";
+import passport from "passport";
+import { googleStrategy } from "./auth.config.js";
 import { handleStorePostUp } from "./controllers/store.controller.js";
 import { handleUserSignUp } from "./controllers/user.controller.js";
 import { handleMissionStatusUpdate } from "./controllers/mission.controller.js";
 import { handleGetMissionsByStoreId } from "./controllers/getmission.controller.js";
+
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT;
+
+// Prisma Client 초기화
+const prisma = new PrismaClient();
+
+passport.use(googleStrategy);
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
 
 /**
  * 공통 응답을 사용할 수 있는 헬퍼 함수 등록
@@ -32,18 +45,38 @@ app.use((req, res, next) => {
 });
 
 /** controller 내에서 별도로 처리하지 않은 오류가 발생한 경우, 모두 잡아서 공통된 오류 응답으로 내려줌 */
+app.use(cors());
+app.use(express.static("public"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-app.use(cors()); // cors 방식 허용
-app.use(express.static("public")); // 정적 파일 접근
-app.use(express.json()); // request의 본문을 json으로 해석할 수 있도록 함 (JSON 형태의 요청 body를 파싱하기 위함)
-app.use(express.urlencoded({ extended: false })); // 단순 객체 문자열 형태로 본문 데이터 해석
-app.get("/mission/:store_id", handleGetMissionsByStoreId);
+app.use(
+  session({
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
+    },
+    resave: false,
+    saveUninitialized: false,
+    secret: process.env.EXPRESS_SESSION_SECRET,
+    store: new PrismaSessionStore(prisma, {
+      checkPeriod: 2 * 60 * 1000, // 2분
+      dbRecordIdIsSessionId: true,
+      dbRecordIdFunction: undefined,
+    }),
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// 기본 라우트
 app.get("/", (req, res) => {
+  console.log(req.user);
   res.send("Hello World!");
 });
 
-app.post("/signup", handleUserSignUp); // signup 처리 핸들러
-
+app.get("/mission/:store_id", handleGetMissionsByStoreId);
+app.post("/signup", handleUserSignUp);
 app.post("/stores", handleStorePostUp);
 app.patch("/missions", handleMissionStatusUpdate);
 
@@ -61,6 +94,16 @@ app.use(
   )
 );
 
+app.get("/oauth2/login/google", passport.authenticate("google"));
+app.get(
+  "/oauth2/callback/google",
+  passport.authenticate("google", {
+    failureRedirect: "/oauth2/login/google",
+    failureMessage: true,
+  }),
+  (req, res) => res.redirect("/")
+);
+
 app.get("/openapi.json", async (req, res, next) => {
   // #swagger.ignore = true
   const options = {
@@ -68,7 +111,7 @@ app.get("/openapi.json", async (req, res, next) => {
     disableLogs: false,
     writeOutputFile: true,
   };
-  const outputFile = "./swagger-output.json"; // 파일 출력은 사용하지 않습니다.
+  const outputFile = "./swagger-output.json";
   const routes = ["./src/index.js"];
   const doc = {
     info: {
@@ -79,15 +122,10 @@ app.get("/openapi.json", async (req, res, next) => {
   };
 
   const result = await swaggerAutogen(options)(outputFile, routes, doc);
-
-  // Swagger UI에서 사용할 수 있도록 JSON 응답
   res.json(result ? result.data : null);
 });
-// Swagger 설정 추가 끝
 
-/**
- * 전역 오류를 처리하기 위한 미들웨어
- */
+// 전역 오류 처리 미들웨어
 app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
@@ -98,6 +136,12 @@ app.use((err, req, res, next) => {
     reason: err.reason || err.message || null,
     data: err.data || null,
   });
+});
+
+// 서버 종료 시 Prisma 연결 닫기
+process.on("SIGINT", async () => {
+  await prisma.$disconnect();
+  process.exit(0);
 });
 
 app.listen(port, () => {
